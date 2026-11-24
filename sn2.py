@@ -640,9 +640,16 @@ def clut_swizzle(pal):
     return c
 
 
+def tim2_header_offset(template):
+    """Where the first picture header starts. TIM2 byte 5 is the alignment flag:
+    0 = picture header right after the 16-byte file header, 1 = file header
+    padded to 128 bytes (DDR X's Here It Goes Again banner uses this)."""
+    return 128 if len(template) > 5 and template[5] == 1 else 16
+
+
 def tim2_replace(template, pixels, clut):
     """Copy a one-picture TIM2, swapping in new pixel and CLUT bytes."""
-    q = 16
+    q = tim2_header_offset(template)
     tot, clut_size, img_size, hs = struct.unpack_from("<IIIH", template, q)
     if len(pixels) != img_size or len(clut) != clut_size:
         raise SN2Error("image does not match the template size")

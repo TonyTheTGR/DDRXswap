@@ -80,5 +80,16 @@ class ArtworkTemplateTests(unittest.TestCase):
         for entry in data:
             a, b = struct.unpack_from('<II', entry)
             flags.append(d.banner_template_valid(sn2.lz_decompress(entry[b:])))
-        self.assertEqual(flags.count(False), 1)
-        self.assertEqual(flags.index(False), 11)
+        self.assertEqual(flags.count(False), 0)   # heit (index 11) uses the aligned layout
+
+    def test_aligned_tim2_banner_is_valid_and_replaced_in_place(self):
+        # TIM2 byte 5 = 1: file header padded to 128, then a 128-byte picture header.
+        pic = struct.pack('<IIIHHBBBBHH', 21632, 1024, 20480, 128, 256, 1, 1, 3, 5, 256, 80)
+        tmpl = b'TIM2' + bytes([4, 1, 1, 0]) + bytes(120) + pic + bytes(128 - len(pic))
+        tmpl += bytes(range(256)) * 80 + bytes(1024)
+        self.assertTrue(d.banner_template_valid(tmpl))
+        out = sn2.tim2_replace(tmpl, b'\x07' * 20480, b'\x09' * 1024)
+        self.assertEqual(len(out), len(tmpl))
+        self.assertEqual(out[:256], tmpl[:256])
+        self.assertEqual(out[256:256 + 20480], b'\x07' * 20480)
+        self.assertEqual(out[256 + 20480:], b'\x09' * 1024)

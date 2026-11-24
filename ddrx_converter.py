@@ -127,19 +127,25 @@ def split_pack(data: bytes, count=SONG_COUNT) -> list[bytes]:
 
 
 def banner_template_valid(template: bytes) -> bool:
-    """DDR X has one empty TIM2 placeholder despite its TIM2 magic.
+    """Only the verified 256x80, 8-bit/256-color stock layout is safe for the
+    SuperNOVA 2 banner writer; other layouts stay untouched.
 
-    Only the verified 256x80, 8-bit/256-color stock template is safe for
-    the existing SuperNOVA 2 banner writer. Other layouts stay untouched.
+    76 stock banners use the plain TIM2 layout (picture header at byte 16).
+    Here It Goes Again (heit) stores the same 256x80 image in the 128-byte
+    aligned layout (TIM2 byte 5 = 1, picture header at byte 128); reading it
+    at byte 16 found only padding, which looked like an empty placeholder.
     """
     if len(template) < 64 or template[:4] != b"TIM2":
         return False
-    total, clut_size, image_size, header_size = struct.unpack_from("<IIIH", template, 16)
-    width, height = struct.unpack_from("<HH", template, 36)
+    q = sn2.tim2_header_offset(template)
+    if len(template) < q + 48:
+        return False
+    total, clut_size, image_size, header_size = struct.unpack_from("<IIIH", template, q)
+    width, height = struct.unpack_from("<HH", template, q + 20)
     return (width == 256 and height == 80 and image_size == width * height
             and clut_size == 1024 and header_size >= 48
             and total >= header_size + image_size + clut_size
-            and 16 + total <= len(template))
+            and q + total <= len(template))
 
 
 def display_metadata(simfile: Path, song) -> tuple[str, str]:
